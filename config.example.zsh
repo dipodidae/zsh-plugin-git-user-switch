@@ -25,6 +25,22 @@ GUS_EMAIL_TO_USER=(
   "spend-cloud-tom@users.noreply.github.com" "spend-cloud-tom"
 )
 
+# Configure username-to-email mappings (for gus-appoint command)
+# This maps GitHub username to git user.email
+typeset -gA GUS_USER_EMAILS
+GUS_USER_EMAILS=(
+  "dipodidae"       "dipodidae@users.noreply.github.com"
+  "spend-cloud-tom" "spend-cloud-tom@users.noreply.github.com"
+)
+
+# Configure username-to-name mappings (for gus-appoint command)
+# This maps GitHub username to git user.name
+typeset -gA GUS_USER_NAMES
+GUS_USER_NAMES=(
+  "dipodidae"       "dipodidae"
+  "spend-cloud-tom" "Tom"
+)
+
 # Enable/disable auto-switching (1 = enabled, 0 = disabled)
 # Default: 1 (enabled)
 typeset -g GUS_AUTO_SWITCH=1
@@ -48,6 +64,22 @@ typeset -g GUS_AUTO_SWITCH=1
 #   "john.doe@acme.com"         "work-acme"
 #   "john@startup.io"           "work-startup"
 #   "contractor@xyzcorp.com"    "client-xyz"
+# )
+#
+# typeset -gA GUS_USER_EMAILS
+# GUS_USER_EMAILS=(
+#   "personal"     "me@personal.com"
+#   "work-acme"    "john.doe@acme.com"
+#   "work-startup" "john@startup.io"
+#   "client-xyz"   "contractor@xyzcorp.com"
+# )
+#
+# typeset -gA GUS_USER_NAMES
+# GUS_USER_NAMES=(
+#   "personal"     "John Doe"
+#   "work-acme"    "John Doe"
+#   "work-startup" "John"
+#   "client-xyz"   "John Doe (Contractor)"
 # )
 
 # Example 2: Disable auto-switching (manual only)

@@ -47,6 +47,40 @@ if (( ${#GUS_EMAIL_TO_USER[@]} == 0 )); then
   )
 fi
 
+# Username-to-email mapping (reverse of GUS_EMAIL_TO_USER, configurable)
+# Users can set this in their .zshrc BEFORE loading the plugin:
+#   typeset -gA GUS_USER_EMAILS
+#   GUS_USER_EMAILS=(
+#     "github-user1" "user1@example.com"
+#     "github-user2" "user2@example.com"
+#   )
+typeset -gA GUS_USER_EMAILS
+
+# Default username-to-email mapping if not already set
+if (( ${#GUS_USER_EMAILS[@]} == 0 )); then
+  GUS_USER_EMAILS=(
+    "dipodidae"       "dipodidae@users.noreply.github.com"
+    "spend-cloud-tom" "spend-cloud-tom@users.noreply.github.com"
+  )
+fi
+
+# Username-to-name mapping for git user.name (configurable)
+# Users can set this in their .zshrc BEFORE loading the plugin:
+#   typeset -gA GUS_USER_NAMES
+#   GUS_USER_NAMES=(
+#     "github-user1" "John Doe"
+#     "github-user2" "Jane Smith"
+#   )
+typeset -gA GUS_USER_NAMES
+
+# Default username-to-name mapping if not already set
+if (( ${#GUS_USER_NAMES[@]} == 0 )); then
+  GUS_USER_NAMES=(
+    "dipodidae"       "dipodidae"
+    "spend-cloud-tom" "Tom"
+  )
+fi
+
 # Auto-switch configuration
 typeset -g GUS_AUTO_SWITCH="${GUS_AUTO_SWITCH:-1}"  # Enable by default
 typeset -g GUS_CURRENT_USER=""  # Track current user to avoid redundant switches
@@ -287,16 +321,120 @@ typeset -g GUS_CURRENT_USER=""  # Track current user to avoid redundant switches
 }
 
 #######################################
-# Main function to switch git user
-# Switches both SSH config and gh CLI authentication
+# Appoint a user to the current repository
+# Sets git config (user.name, user.email) and switches authentication
 # Globals:
 #   GUS_USER_KEYS
+#   GUS_USER_EMAILS
+#   GUS_USER_NAMES
+#   GUS_CURRENT_USER
 # Arguments:
-#   Username to switch to
+#   Username to appoint to current repository
 # Outputs:
 #   Success/error messages to STDOUT/STDERR
 # Returns:
 #   0 on success, 1 on error
+#######################################
+gus-appoint() {
+  builtin emulate -L zsh ${=${options[xtrace]:#off}:+-o xtrace}
+  builtin setopt extended_glob warn_create_global typeset_silent \
+    no_short_loops rc_quotes no_auto_pushd
+
+  local MATCH REPLY
+  integer MBEGIN MEND
+  local -a match mbegin mend reply
+
+  local username="$1"
+
+  # Show help if requested
+  if [[ "${username}" == "help" || "${username}" == "--help" || "${username}" == "-h" ]]; then
+    gus help
+    return 0
+  fi
+
+  # Get valid usernames from configuration
+  local -a valid_users
+  valid_users=( "${(k)GUS_USER_KEYS[@]}" )
+
+  # Validate input
+  if [[ -z "${username}" ]]; then
+    .gus_err "Usage: gus-appoint <username>"
+    .gus_err "Available users: ${valid_users[*]}"
+    .gus_err "Run 'gus help' for more information"
+    return 1
+  fi
+
+  # Check if username is valid
+  if [[ -z "${GUS_USER_KEYS[$username]}" ]]; then
+    .gus_err "Invalid username: ${username}"
+    .gus_err "Available users: ${valid_users[*]}"
+    .gus_err "Run 'gus help' for more information"
+    return 1
+  fi
+
+  # Check if we're in a git repository
+  if ! git rev-parse --git-dir &>/dev/null; then
+    .gus_err "Not in a git repository"
+    .gus_err "Please navigate to a git repository first"
+    return 1
+  fi
+
+  echo "Appointing ${username} to this repository..."
+  echo ""
+
+  # Get email and name for this user
+  local user_email="${GUS_USER_EMAILS[$username]}"
+  local user_name="${GUS_USER_NAMES[$username]}"
+
+  # Use username as fallback if name not configured
+  if [[ -z "${user_name}" ]]; then
+    user_name="${username}"
+  fi
+
+  # Check if email is configured
+  if [[ -z "${user_email}" ]]; then
+    .gus_err "No email configured for user: ${username}"
+    .gus_err "Please add to GUS_USER_EMAILS in your .zshrc"
+    return 1
+  fi
+
+  # Set git config for this repository
+  echo "Setting git config for this repository:"
+  git config user.name "${user_name}" || {
+    .gus_err "Failed to set git user.name"
+    return 1
+  }
+  echo "  user.name  = ${user_name}"
+
+  git config user.email "${user_email}" || {
+    .gus_err "Failed to set git user.email"
+    return 1
+  }
+  echo "  user.email = ${user_email}"
+  echo ""
+
+  # Update SSH config
+  .gus_update_ssh_config "${username}" || return 1
+
+  # Switch gh authentication
+  .gus_switch_gh_auth "${username}" || return 1
+
+  # Update current user tracking
+  GUS_CURRENT_USER="${username}"
+
+  echo ""
+  echo "✓ Successfully appointed ${username} to this repository"
+  echo "  Git config, SSH key, and gh CLI are now configured for ${username}."
+  echo ""
+  echo "Repository location: $(git rev-parse --show-toplevel)"
+
+  return 0
+}
+
+#######################################
+# Display help information for gus commands
+# Outputs:
+#   Brief usage information to STDOUT
 #######################################
 gus() {
   builtin emulate -L zsh ${=${options[xtrace]:#off}:+-o xtrace}
@@ -309,6 +447,38 @@ gus() {
 
   local username="$1"
 
+  # Show help if requested
+  if [[ "${username}" == "help" || "${username}" == "--help" || "${username}" == "-h" ]]; then
+    local -a valid_users
+    valid_users=( "${(k)GUS_USER_KEYS[@]}" )
+    
+    cat << EOF
+Git User Switch - Manage multiple GitHub accounts
+
+COMMANDS:
+  gus <user>          Switch to user globally (SSH + gh CLI)
+  gus-appoint <user>  Appoint user to current repo (git config + SSH + gh CLI)
+  gus help            Show this help
+
+EXAMPLES:
+  gus dipodidae                    # Switch globally to dipodidae
+  cd ~/work-repo && gus-appoint work-user   # Set up repo for work-user
+
+AVAILABLE USERS:
+  ${valid_users[*]}
+
+CONFIGURATION:
+  Configure in ~/.zshrc before loading plugin:
+    typeset -gA GUS_USER_KEYS       # user → SSH key path
+    typeset -gA GUS_USER_EMAILS     # user → git email (for gus-appoint)
+    typeset -gA GUS_USER_NAMES      # user → git name (for gus-appoint)
+    typeset -gA GUS_EMAIL_TO_USER   # email → user (for auto-switch)
+
+DOCS: See README.md, QUICKSTART.md, APPOINT-GUIDE.md
+EOF
+    return 0
+  fi
+
   # Get valid usernames from configuration
   local -a valid_users
   valid_users=( "${(k)GUS_USER_KEYS[@]}" )
@@ -317,6 +487,7 @@ gus() {
   if [[ -z "${username}" ]]; then
     .gus_err "Usage: gus <username>"
     .gus_err "Available users: ${valid_users[*]}"
+    .gus_err "Run 'gus help' for more information"
     return 1
   fi
 
@@ -324,6 +495,7 @@ gus() {
   if [[ -z "${GUS_USER_KEYS[$username]}" ]]; then
     .gus_err "Invalid username: ${username}"
     .gus_err "Available users: ${valid_users[*]}"
+    .gus_err "Run 'gus help' for more information"
     return 1
   fi
 
@@ -368,6 +540,7 @@ git_user_switch_plugin_unload() {
 
   # Unset functions
   unfunction gus 2>/dev/null
+  unfunction gus-appoint 2>/dev/null
   unfunction .gus_err 2>/dev/null
   unfunction .gus_get_git_email 2>/dev/null
   unfunction .gus_update_ssh_config 2>/dev/null

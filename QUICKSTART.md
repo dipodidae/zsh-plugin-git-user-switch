@@ -55,6 +55,20 @@ GUS_EMAIL_TO_USER=(
   # "your-work@email.com"                    "spend-cloud-tom"
 )
 
+# Username to email mapping (for gus-appoint command)
+typeset -gA GUS_USER_EMAILS
+GUS_USER_EMAILS=(
+  "dipodidae"       "dipodidae@users.noreply.github.com"
+  "spend-cloud-tom" "spend-cloud-tom@users.noreply.github.com"
+)
+
+# Username to name mapping (for gus-appoint command)
+typeset -gA GUS_USER_NAMES
+GUS_USER_NAMES=(
+  "dipodidae"       "dipodidae"
+  "spend-cloud-tom" "Tom"
+)
+
 # Auto-switching is enabled by default, but you can disable it:
 # typeset -g GUS_AUTO_SWITCH=0
 ```
@@ -90,7 +104,27 @@ source ~/.zsh/plugins/git-user-switch/git-user-switch.plugin.zsh
 
 ## Step 4: Set Up Your Git Repositories
 
-Configure the email in each of your git repositories:
+You have two options to set up repositories:
+
+### Option A: Use gus-appoint (Recommended - Easy!)
+
+Navigate to your repository and appoint a user - it sets everything up automatically:
+
+```bash
+# Personal projects
+cd ~/projects/my-personal-project
+gus-appoint dipodidae
+
+# Work projects
+cd ~/projects/work-project
+gus-appoint spend-cloud-tom
+```
+
+This automatically configures `user.name`, `user.email`, SSH keys, and gh CLI for that repository!
+
+### Option B: Manual Configuration
+
+Configure the email in each of your git repositories manually:
 
 ```bash
 # Personal projects
@@ -113,6 +147,16 @@ git config --global user.name "Your Name"
 Then only override in specific repositories that need a different account.
 
 ## Step 5: Use It!
+
+### Appointing Users to Repositories
+
+Use `gus-appoint` to set up a user for a repository with one command:
+
+```bash
+cd ~/projects/my-new-repo
+gus-appoint dipodidae
+# Sets git config, SSH key, and gh CLI all at once!
+```
 
 ### Auto-Switching (Just cd!)
 

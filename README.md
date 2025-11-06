@@ -7,9 +7,10 @@ A simple zsh plugin to switch between multiple GitHub user accounts. It automati
 - 🔑 Automatically updates SSH config to use the correct identity file
 - 👤 Switches `gh` CLI authentication to the specified user
 - 🔄 **Auto-switches based on git repository config** (when you `cd` into a directory)
+- 📝 **Appoint users to repositories** with full git config setup
 - ⚙️ Fully configurable user/key mappings
 - ✅ Validates user input and provides helpful error messages
-- � Creates automatic backups of your SSH config before making changes
+- 💾 Creates automatic backups of your SSH config before making changes
 - 📦 Follows the [Zsh Plugin Standard](https://z-shell.pages.dev/docs/zsh-plugin-standard)
 
 ## Prerequisites
@@ -80,6 +81,8 @@ zi light dipodidae/zsh-plugin-git-user-switch
 **Configuration Options:**
 - `GUS_USER_KEYS`: Maps GitHub username → SSH key path
 - `GUS_EMAIL_TO_USER`: Maps git user.email → GitHub username (for auto-switching)
+- `GUS_USER_EMAILS`: Maps GitHub username → git user.email (for appointing users)
+- `GUS_USER_NAMES`: Maps GitHub username → git user.name (for appointing users)
 - `GUS_AUTO_SWITCH`: Enable/disable auto-switching (1 = enabled, 0 = disabled, default: 1)
 
 **Note:** The mapping format is:
@@ -128,6 +131,27 @@ zplug "dipodidae/zsh-plugin-git-user-switch"
 
 ## Usage
 
+### Appointing a User to a Repository
+
+Use the `gus-appoint` command to set up a user for a specific repository with all necessary git config:
+
+```bash
+# Navigate to your repository
+cd ~/projects/my-work-repo
+
+# Appoint a user to this repository
+gus-appoint spend-cloud-tom
+```
+
+This command will:
+1. Set `git config user.name` and `user.email` for the repository
+2. Update your `~/.ssh/config` to use the correct SSH key
+3. Switch your `gh` CLI authentication to the specified user
+
+Perfect for setting up new repositories or switching ownership of existing ones!
+
+**For detailed information, see the [Repository Appointment Guide](APPOINT-GUIDE.md).**
+
 ### Manual Switching
 
 Switch between users with the `gus` command:
@@ -160,7 +184,57 @@ git config user.email "tom@work.com"
 
 # Now when you cd between them, the plugin auto-switches!
 cd ~/projects/personal-repo  # 🔄 Auto-switches to dipodidae
-cd ~/projects/work-repo      # 🔄 Auto-switches to spend-cloud-tom
+cd ~/projects/work-project         # 🔄 Auto-switches to spend-cloud-tom
+```
+
+## Commands Reference
+
+The plugin provides the following commands:
+
+### `gus help`
+Display brief usage information for all commands.
+
+```bash
+gus help        # Show help
+gus --help      # Also works
+gus -h          # Also works
+```
+
+### `gus <username>`
+Switch to a different GitHub user globally (SSH config and gh CLI).
+
+```bash
+gus dipodidae        # Switch to dipodidae
+gus spend-cloud-tom  # Switch to spend-cloud-tom
+```
+
+**What it does:**
+- Updates SSH config to use the user's SSH key
+- Switches gh CLI authentication
+- Updates internal user tracking
+
+### `gus-appoint <username>`
+Appoint a user to the current git repository with complete configuration.
+
+```bash
+cd ~/projects/my-repo
+gus-appoint dipodidae  # Set up repository for dipodidae
+```
+
+**What it does:**
+- Sets `git config user.name` for the repository
+- Sets `git config user.email` for the repository
+- Updates SSH config to use the user's SSH key
+- Switches gh CLI authentication
+- Updates internal user tracking
+
+**Requires:** Must be run inside a git repository
+
+See [APPOINT-GUIDE.md](APPOINT-GUIDE.md) for detailed usage.
+
+## Configuration
+
+By default, the plugin expects SSH keys at:
 ```
 
 **How it works:**

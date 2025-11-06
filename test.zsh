@@ -27,6 +27,7 @@ required_functions=(
   .gus_err
   .gus_update_ssh_config
   .gus_switch_gh_auth
+  gus-appoint
   git_user_switch_plugin_unload
 )
 
@@ -46,6 +47,37 @@ if [[ -n "${Plugins[GIT_USER_SWITCH_DIR]}" ]]; then
   echo "✓ PASS: Plugins[GIT_USER_SWITCH_DIR] is set to: ${Plugins[GIT_USER_SWITCH_DIR]}"
 else
   echo "✗ FAIL: Plugins[GIT_USER_SWITCH_DIR] is not set"
+  exit 1
+fi
+echo ""
+
+# Test 3.5: Check configuration hashes
+echo "Test 3.5: Checking configuration hashes..."
+if (( ${#GUS_USER_KEYS[@]} > 0 )); then
+  echo "✓ PASS: GUS_USER_KEYS is configured with ${#GUS_USER_KEYS[@]} users"
+else
+  echo "✗ FAIL: GUS_USER_KEYS is not configured"
+  exit 1
+fi
+
+if (( ${#GUS_EMAIL_TO_USER[@]} > 0 )); then
+  echo "✓ PASS: GUS_EMAIL_TO_USER is configured with ${#GUS_EMAIL_TO_USER[@]} mappings"
+else
+  echo "✗ FAIL: GUS_EMAIL_TO_USER is not configured"
+  exit 1
+fi
+
+if (( ${#GUS_USER_EMAILS[@]} > 0 )); then
+  echo "✓ PASS: GUS_USER_EMAILS is configured with ${#GUS_USER_EMAILS[@]} mappings"
+else
+  echo "✗ FAIL: GUS_USER_EMAILS is not configured"
+  exit 1
+fi
+
+if (( ${#GUS_USER_NAMES[@]} > 0 )); then
+  echo "✓ PASS: GUS_USER_NAMES is configured with ${#GUS_USER_NAMES[@]} mappings"
+else
+  echo "✗ FAIL: GUS_USER_NAMES is not configured"
   exit 1
 fi
 echo ""

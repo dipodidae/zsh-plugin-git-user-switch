@@ -8,7 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **🔄 Auto-switching based on git config** - Plugin now automatically switches users when you `cd` into a directory based on `git config user.email`
+- **📝 Repository user appointment** - New `gus-appoint` command to set up a user for a repository with full git config
+- `gus-appoint <username>` command to configure git user.name, user.email, SSH, and gh CLI in one command
+- `gus help` command to display brief usage information for all commands
+- Help aliases: `gus --help` and `gus -h` also work
+- `GUS_USER_EMAILS` configuration hash to map usernames to git emails
+- `GUS_USER_NAMES` configuration hash to map usernames to git display names
+- Repository appointment guide in `APPOINT-GUIDE.md`
+- Default email and name mappings for configured users
+- Validation to ensure `gus-appoint` is run inside a git repository
+- **�🔄 Auto-switching based on git config** - Plugin now automatically switches users when you `cd` into a directory based on `git config user.email`
 - `GUS_EMAIL_TO_USER` configuration hash to map git emails to GitHub usernames
 - `GUS_AUTO_SWITCH` option to enable/disable auto-switching (enabled by default)
 - `→gus_auto_switch()` hook function triggered on directory changes via `chpwd`
@@ -22,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Auto-loading of `add-zsh-hook` for chpwd hook management
 
 ### Changed
+- Error messages now suggest running 'gus help' for more information
+- Updated README with `gus help` command documentation
+- Updated README with `gus-appoint` command documentation
+- Updated QUICKSTART with appointment workflow
+- Updated EXAMPLES with repository appointment examples and help output
+- Updated config.example.zsh with email and name mappings
 - User list is now dynamically generated from `GUS_USER_KEYS`
 - SSH key paths are now configurable instead of hardcoded
 - Default configuration matches repository author's setup (can be overridden)
@@ -79,12 +94,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned Features
 - Completion support for username arguments (zsh completions)
-- Optional git config switching (user.name, user.email) per repository
 - Better detection of SSH key types (ed25519, rsa, ecdsa, etc.)
 - Interactive mode for selecting users (fzf integration?)
 - Status command to show current user (`gus status`)
 - List command to show all configured users (`gus list`)
 - Dry-run mode to preview changes without applying them
+- Global git config switching option (in addition to per-repository)
 
 ---
 

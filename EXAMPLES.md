@@ -29,6 +29,71 @@ source ~/path/to/git-user-switch.plugin.zsh
 
 ## Switching Users
 
+## Getting Help
+
+```console
+$ gus help
+Git User Switch - Manage multiple GitHub accounts
+
+COMMANDS:
+  gus <user>          Switch to user globally (SSH + gh CLI)
+  gus-appoint <user>  Appoint user to current repo (git config + SSH + gh CLI)
+  gus help            Show this help
+
+EXAMPLES:
+  gus dipodidae                    # Switch globally to dipodidae
+  cd ~/work-repo && gus-appoint work-user   # Set up repo for work-user
+
+AVAILABLE USERS:
+  dipodidae spend-cloud-tom
+
+CONFIGURATION:
+  Configure in ~/.zshrc before loading plugin:
+    typeset -gA GUS_USER_KEYS       # user → SSH key path
+    typeset -gA GUS_USER_EMAILS     # user → git email (for gus-appoint)
+    typeset -gA GUS_USER_NAMES      # user → git name (for gus-appoint)
+    typeset -gA GUS_EMAIL_TO_USER   # email → user (for auto-switch)
+
+DOCS: See README.md, QUICKSTART.md, APPOINT-GUIDE.md
+```
+
+## Appointing a User to a Repository
+
+```console
+$ cd ~/projects/work-repo
+
+$ gus-appoint spend-cloud-tom
+Appointing spend-cloud-tom to this repository...
+
+Setting git config for this repository:
+  user.name  = Tom
+  user.email = spend-cloud-tom@users.noreply.github.com
+
+✓ Updated SSH config to use: /home/tom/.ssh/spend-cloud-tom
+✓ Switched gh CLI to user: spend-cloud-tom
+
+✓ Successfully appointed spend-cloud-tom to this repository
+  Git config, SSH key, and gh CLI are now configured for spend-cloud-tom.
+
+Repository location: /home/tom/projects/work-repo
+```
+
+Now when you commit in this repository:
+```console
+$ git commit -m "Initial commit"
+[main abc1234] Initial commit
+ Author: Tom <spend-cloud-tom@users.noreply.github.com>
+```
+
+And auto-switching will work when you navigate to this repository:
+```console
+$ cd ~/projects/personal-repo
+🔄 Auto-switching to GitHub user: dipodidae (based on git config)
+
+$ cd ~/projects/work-repo
+🔄 Auto-switching to GitHub user: spend-cloud-tom (based on git config)
+```
+
 ## Switching to dipodidae
 
 ```console
