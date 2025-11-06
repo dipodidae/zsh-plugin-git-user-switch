@@ -154,7 +154,7 @@ The plugin automatically switches users when you navigate to a git repository, b
 cd ~/projects/personal-repo
 git config user.email "dipodidae@users.noreply.github.com"
 
-# Set git email in your work project  
+# Set git email in your work project
 cd ~/projects/work-repo
 git config user.email "tom@work.com"
 

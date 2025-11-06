@@ -168,6 +168,6 @@ Potential future additions:
 
 ---
 
-**Author**: Tom (dipodidae)  
-**Date**: November 6, 2025  
+**Author**: Tom (dipodidae)
+**Date**: November 6, 2025
 **Version**: 0.2.0 (with dynamic configuration)
