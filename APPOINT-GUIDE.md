@@ -7,7 +7,7 @@ The `gus-appoint` command makes it easy to set up a complete user identity for a
 When you run `gus-appoint <username>`, the plugin:
 
 1. ✅ Sets `git config user.name` for the repository
-2. ✅ Sets `git config user.email` for the repository  
+2. ✅ Sets `git config user.email` for the repository
 3. ✅ Updates SSH config to use the correct identity file
 4. ✅ Switches `gh` CLI authentication to the specified user
 5. ✅ Updates internal tracking for auto-switching

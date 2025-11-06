@@ -451,7 +451,7 @@ gus() {
   if [[ "${username}" == "help" || "${username}" == "--help" || "${username}" == "-h" ]]; then
     local -a valid_users
     valid_users=( "${(k)GUS_USER_KEYS[@]}" )
-    
+
     cat << EOF
 Git User Switch - Manage multiple GitHub accounts
 
