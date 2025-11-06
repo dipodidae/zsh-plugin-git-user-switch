@@ -1,0 +1,17 @@
+# Example SSH Config for Git User Switch Plugin
+#
+# Place this in ~/.ssh/config
+# The plugin will automatically update the IdentityFile line when you switch users
+
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_rsa_dipodidae
+  AddKeysToAgent yes
+  IdentitiesOnly yes
+
+# You can also add other hosts below as needed
+# Host gitlab.com
+#   HostName gitlab.com
+#   User git
+#   IdentityFile ~/.ssh/id_rsa_gitlab
