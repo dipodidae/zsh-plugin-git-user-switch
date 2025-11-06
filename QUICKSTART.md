@@ -1,166 +1,252 @@
 # Quick Start Guide
 
-## 1. Set Up SSH Keys
+Get up and running with `git-user-switch` in 5 minutes!
 
-Make sure you have SSH keys for both GitHub accounts:
+## Step 1: Prerequisites
 
-```bash
-# If you don't have keys yet, create them:
-ssh-keygen -t rsa -b 4096 -C "your-dipodidae-email@example.com" -f ~/.ssh/id_rsa_dipodidae
-ssh-keygen -t rsa -b 4096 -C "your-spend-cloud-tom-email@example.com" -f ~/.ssh/id_rsa_spend_cloud_tom
+Make sure you have:
+- ✅ `gh` CLI installed and authenticated for your users
+- ✅ SSH keys created for each GitHub account
+- ✅ SSH config file at `~/.ssh/config`
 
-# Add the public keys to GitHub:
-# 1. Copy your public key:
-cat ~/.ssh/id_rsa_dipodidae.pub
-# 2. Go to GitHub.com → Settings → SSH and GPG keys → New SSH key
-# 3. Paste and save
-# Repeat for the other account
-```
-
-## 2. Set Up SSH Config
-
-Create or edit `~/.ssh/config`:
+### Install gh CLI (if needed)
 
 ```bash
-# Copy the example config:
-mkdir -p ~/.ssh
-cat > ~/.ssh/config << 'EOF'
-Host github.com
-  HostName github.com
-  User git
-  IdentityFile ~/.ssh/id_rsa_dipodidae
-  AddKeysToAgent yes
-  IdentitiesOnly yes
-EOF
-
-# Secure your SSH directory:
-chmod 700 ~/.ssh
-chmod 600 ~/.ssh/config
-chmod 600 ~/.ssh/id_rsa_*
-```
-
-## 3. Authenticate GitHub CLI
-
-```bash
-# Install gh CLI if needed (macOS):
+# macOS
 brew install gh
 
-# Or on Debian/Ubuntu:
-# sudo apt install gh
+# Debian/Ubuntu
+sudo apt install gh
 
-# Authenticate both accounts:
+# Or see: https://cli.github.com/
+```
+
+### Authenticate your GitHub accounts
+
+```bash
+# Authenticate first account
 gh auth login
-# Choose GitHub.com, HTTPS, authenticate via browser
-# Log in as dipodidae
+# Follow prompts, log in as dipodidae
 
-# Then authenticate the second account:
+# Authenticate second account
 gh auth login
-# Log in as spend-cloud-tom
+# Follow prompts, log in as spend-cloud-tom
 ```
 
-## 4. Install the Plugin
+## Step 2: Configure (Optional but Recommended)
 
-### Option A: Manual (for testing)
+Add this to your `.zshrc` **before** loading the plugin:
 
-```bash
-# Just source it in your current shell:
-source ~/clones/zsh-plugin-git-user-switch/git-user-switch.plugin.zsh
+```zsh
+# User to SSH key mapping
+typeset -gA GUS_USER_KEYS
+GUS_USER_KEYS=(
+  "dipodidae"       "~/.ssh/dipodidae"
+  "spend-cloud-tom" "~/.ssh/spend-cloud-tom"
+)
+
+# Email to username mapping (for auto-switching)
+typeset -gA GUS_EMAIL_TO_USER
+GUS_EMAIL_TO_USER=(
+  "dipodidae@users.noreply.github.com"       "dipodidae"
+  "spend-cloud-tom@users.noreply.github.com" "spend-cloud-tom"
+  # Or use your actual emails:
+  # "your-personal@email.com"                "dipodidae"
+  # "your-work@email.com"                    "spend-cloud-tom"
+)
+
+# Auto-switching is enabled by default, but you can disable it:
+# typeset -g GUS_AUTO_SWITCH=0
 ```
 
-### Option B: Add to .zshrc (permanent)
+**Note:** If you skip this step, the plugin uses sensible defaults matching the repository author's setup.
 
-```bash
-# Add this line to your ~/.zshrc:
-echo 'source ~/clones/zsh-plugin-git-user-switch/git-user-switch.plugin.zsh' >> ~/.zshrc
+## Step 3: Install
 
-# Reload your shell:
-source ~/.zshrc
+Choose your preferred method:
+
+### With Zi (recommended)
+```zsh
+zi light dipodidae/zsh-plugin-git-user-switch
 ```
 
-### Option C: Use a plugin manager
+### With Oh My Zsh
+```bash
+git clone https://github.com/dipodidae/zsh-plugin-git-user-switch.git \
+  ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/git-user-switch
 
-See README.md for instructions on using Zi, Oh My Zsh, or zplug.
+# Then add to plugins in .zshrc:
+plugins=(... git-user-switch)
+```
 
-## 5. Use the Plugin
+### Manual
+```bash
+git clone https://github.com/dipodidae/zsh-plugin-git-user-switch.git \
+  ~/.zsh/plugins/git-user-switch
+
+# Add to .zshrc:
+source ~/.zsh/plugins/git-user-switch/git-user-switch.plugin.zsh
+```
+
+## Step 4: Set Up Your Git Repositories
+
+Configure the email in each of your git repositories:
 
 ```bash
-# Switch to dipodidae:
+# Personal projects
+cd ~/projects/my-personal-project
+git config user.email "dipodidae@users.noreply.github.com"
+git config user.name "dipodidae"
+
+# Work projects
+cd ~/projects/work-project
+git config user.email "spend-cloud-tom@users.noreply.github.com"
+git config user.name "Tom"
+```
+
+**Pro tip:** Set a global default for your most-used account:
+```bash
+git config --global user.email "your-main@email.com"
+git config --global user.name "Your Name"
+```
+
+Then only override in specific repositories that need a different account.
+
+## Step 5: Use It!
+
+### Auto-Switching (Just cd!)
+
+Once configured, the plugin automatically switches when you navigate:
+
+```bash
+cd ~/projects/my-personal-project  # 🔄 Auto-switches to dipodidae
+cd ~/projects/work-project         # 🔄 Auto-switches to spend-cloud-tom
+```
+
+### Manual Switching
+
+You can also switch manually anytime:
+
+```bash
+# Switch to dipodidae
 gus dipodidae
 
-# Switch to spend-cloud-tom:
+# Switch to spend-cloud-tom
 gus spend-cloud-tom
-
-# Check current gh user:
-gh auth status
 ```
 
-## 6. Verify It Works
+## Step 6: Verify
+
+Test that everything works:
 
 ```bash
-# Test SSH connection:
+# After switching (automatically or manually), test SSH
 ssh -T git@github.com
 # Should show: Hi <current-user>! You've successfully authenticated...
 
-# Test gh CLI:
+# Check gh CLI
 gh auth status
 # Should show the current authenticated user
-
-# Clone a repo to test:
-git clone git@github.com:dipodidae/some-repo.git
 ```
 
-## Customization
+You're all set! 🎉
 
-If your SSH keys have different names, edit `git-user-switch.plugin.zsh`:
+## How Auto-Switching Works
 
-```zsh
-case "${username}" in
-  dipodidae)
-    ssh_key_file="${HOME}/.ssh/id_ed25519_dipodidae"  # Your actual key name
-    ;;
-  spend-cloud-tom)
-    ssh_key_file="${HOME}/.ssh/id_ed25519_work"  # Your actual key name
-    ;;
-esac
-```
+1. When you `cd` into a directory, the plugin checks if it's a git repository
+2. It reads the `git config user.email` value
+3. It looks up the corresponding GitHub username in `GUS_EMAIL_TO_USER`
+4. If a match is found and it's different from the current user, it auto-switches
+5. SSH config and gh CLI are updated automatically
 
-## Troubleshooting
+## Tips & Tricks
 
-### Issue: "Permission denied (publickey)"
+### Tip 1: Use Per-Directory Git Config
+
+Create a `.gitconfig` in a parent directory:
 
 ```bash
-# Make sure your key has correct permissions:
-chmod 600 ~/.ssh/id_rsa_dipodidae
-chmod 600 ~/.ssh/id_rsa_spend_cloud_tom
+# ~/projects/personal/.gitconfig
+[user]
+    email = dipodidae@users.noreply.github.com
+    name = dipodidae
 
-# Test which key is being used:
-ssh -vT git@github.com 2>&1 | grep "identity file"
+# ~/projects/work/.gitconfig
+[user]
+    email = spend-cloud-tom@users.noreply.github.com
+    name = Tom
 ```
 
-### Issue: "Failed to switch gh authentication"
+Then in your global `~/.gitconfig`:
+```ini
+[includeIf "gitdir:~/projects/personal/"]
+    path = ~/projects/personal/.gitconfig
+
+[includeIf "gitdir:~/projects/work/"]
+    path = ~/projects/work/.gitconfig
+```
+
+Now all repos under `~/projects/personal/` auto-use your personal account!
+
+### Tip 2: Disable Auto-Switching Temporarily
 
 ```bash
-# List authenticated accounts:
-gh auth status
+# Disable for current session
+GUS_AUTO_SWITCH=0
 
-# Re-authenticate if needed:
+# Or disable permanently in .zshrc before loading plugin
+typeset -g GUS_AUTO_SWITCH=0
+```
+
+### Tip 3: See Current Configuration
+
+```bash
+# Show configured users
+echo ${(k)GUS_USER_KEYS[@]}
+
+# Show email mappings
+echo ${(kv)GUS_EMAIL_TO_USER[@]}
+```
+
+## Common Issues
+
+**"gh CLI not found"**
+```bash
+brew install gh  # macOS
+# or visit: https://cli.github.com/
+```
+
+**"Failed to switch gh authentication"**
+```bash
+# Authenticate your accounts
 gh auth login
 ```
 
-### Issue: Plugin command not found
-
+**"SSH key not found"**
 ```bash
-# Make sure the plugin is sourced:
-source ~/clones/zsh-plugin-git-user-switch/git-user-switch.plugin.zsh
+# Generate SSH keys if needed
+ssh-keygen -t ed25519 -C "your-email@example.com" -f ~/.ssh/keyname
 
-# Check if function exists:
-type gus
+# Add to GitHub: Settings → SSH and GPG keys → New SSH key
+cat ~/.ssh/keyname.pub
 ```
 
-## Next Steps
+**Auto-switching not working**
+```bash
+# Check if you're in a git repository
+git status
 
-1. Add the plugin to your favorite plugin manager
-2. Customize SSH key paths if needed
-3. Consider publishing to GitHub for others to use!
+# Check the email in the repo
+git config user.email
+
+# Check if the email is mapped
+echo ${GUS_EMAIL_TO_USER[$(git config user.email)]}
+```
+
+## Need More Help?
+
+- [README](README.md) - Complete documentation
+- [CONFIGURATION.md](CONFIGURATION.md) - Advanced configuration options
+- [EXAMPLES.md](EXAMPLES.md) - More usage examples
 
 Happy coding! 🚀

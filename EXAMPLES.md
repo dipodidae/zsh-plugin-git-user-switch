@@ -1,4 +1,33 @@
-# Example Usage
+# Examples
+
+## Basic Usage
+
+### Configuration in .zshrc
+
+```zsh
+# Example 1: Using default configuration
+# (Keys at ~/.ssh/id_rsa_dipodidae and ~/.ssh/id_rsa_spend_cloud_tom)
+zi light dipodidae/zsh-plugin-git-user-switch
+
+# Example 2: Custom key locations
+typeset -gA GUS_USER_KEYS
+GUS_USER_KEYS=(
+  "dipodidae"       "~/.ssh/dipodidae"
+  "spend-cloud-tom" "~/.ssh/spend-cloud-tom"
+)
+zi light dipodidae/zsh-plugin-git-user-switch
+
+# Example 3: Multiple users with different key types
+typeset -gA GUS_USER_KEYS
+GUS_USER_KEYS=(
+  "personal"   "~/.ssh/id_ed25519_personal"
+  "work"       "~/.ssh/id_rsa_work"
+  "freelance"  "~/.ssh/github_freelance"
+)
+source ~/path/to/git-user-switch.plugin.zsh
+```
+
+## Switching Users
 
 ## Switching to dipodidae
 

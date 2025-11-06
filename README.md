@@ -6,8 +6,10 @@ A simple zsh plugin to switch between multiple GitHub user accounts. It automati
 
 - 🔑 Automatically updates SSH config to use the correct identity file
 - 👤 Switches `gh` CLI authentication to the specified user
+- 🔄 **Auto-switches based on git repository config** (when you `cd` into a directory)
+- ⚙️ Fully configurable user/key mappings
 - ✅ Validates user input and provides helpful error messages
-- 🔄 Creates automatic backups of your SSH config before making changes
+- � Creates automatic backups of your SSH config before making changes
 - 📦 Follows the [Zsh Plugin Standard](https://z-shell.pages.dev/docs/zsh-plugin-standard)
 
 ## Prerequisites
@@ -28,6 +30,61 @@ A simple zsh plugin to switch between multiple GitHub user accounts. It automati
      User git
      IdentityFile ~/.ssh/id_rsa_dipodidae
    ```
+
+## Configuration
+
+The plugin uses a configurable mapping between GitHub usernames and SSH key paths. You can customize this in your `.zshrc` **before** loading the plugin.
+
+### Default Configuration
+
+If you don't provide a custom configuration, the plugin uses these defaults:
+
+```zsh
+typeset -gA GUS_USER_KEYS
+GUS_USER_KEYS=(
+  "dipodidae"       "~/.ssh/dipodidae"
+  "spend-cloud-tom" "~/.ssh/spend-cloud-tom"
+)
+```
+
+**Note:** These paths match the repository author's setup. You should customize them to match your own SSH key locations.
+
+### Custom Configuration
+
+To use your own user/key mappings, add this to your `.zshrc` **before** the plugin is loaded:
+
+```zsh
+# Define your custom user-to-key mapping
+typeset -gA GUS_USER_KEYS
+GUS_USER_KEYS=(
+  "dipodidae"       "~/.ssh/dipodidae"
+  "spend-cloud-tom" "~/.ssh/spend-cloud-tom"
+  "another-user"    "~/.ssh/another_user_key"
+)
+
+# Define email-to-username mapping for auto-switching
+typeset -gA GUS_EMAIL_TO_USER
+GUS_EMAIL_TO_USER=(
+  "dipodidae@users.noreply.github.com"       "dipodidae"
+  "tom@work.com"                             "spend-cloud-tom"
+  "another@example.com"                      "another-user"
+)
+
+# Optional: Disable auto-switching (enabled by default)
+# typeset -g GUS_AUTO_SWITCH=0
+
+# Then load the plugin (example with Zi)
+zi light dipodidae/zsh-plugin-git-user-switch
+```
+
+**Configuration Options:**
+- `GUS_USER_KEYS`: Maps GitHub username → SSH key path
+- `GUS_EMAIL_TO_USER`: Maps git user.email → GitHub username (for auto-switching)
+- `GUS_AUTO_SWITCH`: Enable/disable auto-switching (1 = enabled, 0 = disabled, default: 1)
+
+**Note:** The mapping format is:
+- Key: GitHub username (must match your `gh` CLI authenticated username)
+- Value: Path to SSH private key (can use `~` for home directory)
 
 ## Installation
 
@@ -71,6 +128,8 @@ zplug "dipodidae/zsh-plugin-git-user-switch"
 
 ## Usage
 
+### Manual Switching
+
 Switch between users with the `gus` command:
 
 ```bash
@@ -85,6 +144,36 @@ The plugin will:
 1. Update your `~/.ssh/config` to use the correct SSH key
 2. Switch your `gh` CLI authentication to the specified user
 3. Create a backup of your SSH config at `~/.ssh/config.bak`
+
+### Automatic Switching
+
+The plugin automatically switches users when you navigate to a git repository, based on the `user.email` in the git config:
+
+```bash
+# Set git email in your personal project
+cd ~/projects/personal-repo
+git config user.email "dipodidae@users.noreply.github.com"
+
+# Set git email in your work project  
+cd ~/projects/work-repo
+git config user.email "tom@work.com"
+
+# Now when you cd between them, the plugin auto-switches!
+cd ~/projects/personal-repo  # 🔄 Auto-switches to dipodidae
+cd ~/projects/work-repo      # 🔄 Auto-switches to spend-cloud-tom
+```
+
+**How it works:**
+1. When you `cd` into a directory, the plugin checks if it's a git repository
+2. It reads the `git config user.email` value
+3. It looks up the corresponding GitHub username in `GUS_EMAIL_TO_USER`
+4. If a match is found and it's different from the current user, it auto-switches
+
+**To disable auto-switching:**
+```zsh
+# In your .zshrc before loading the plugin
+typeset -g GUS_AUTO_SWITCH=0
+```
 
 ## Configuration
 

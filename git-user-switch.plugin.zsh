@@ -13,6 +13,44 @@
 typeset -gA Plugins
 Plugins[GIT_USER_SWITCH_DIR]="${0:h}"
 
+# User-to-SSH-key mapping (configurable)
+# Users can set this in their .zshrc BEFORE loading the plugin:
+#   typeset -gA GUS_USER_KEYS
+#   GUS_USER_KEYS=(
+#     "myuser1" "~/.ssh/mykey1"
+#     "myuser2" "~/.ssh/mykey2"
+#   )
+typeset -gA GUS_USER_KEYS
+
+# Default configuration if not already set
+if (( ${#GUS_USER_KEYS[@]} == 0 )); then
+  GUS_USER_KEYS=(
+    "dipodidae"       "~/.ssh/dipodidae"
+    "spend-cloud-tom" "~/.ssh/spend-cloud-tom"
+  )
+fi
+
+# Email-to-username mapping for auto-switching (configurable)
+# Users can set this in their .zshrc BEFORE loading the plugin:
+#   typeset -gA GUS_EMAIL_TO_USER
+#   GUS_EMAIL_TO_USER=(
+#     "user1@example.com" "github-user1"
+#     "user2@example.com" "github-user2"
+#   )
+typeset -gA GUS_EMAIL_TO_USER
+
+# Default email mapping if not already set
+if (( ${#GUS_EMAIL_TO_USER[@]} == 0 )); then
+  GUS_EMAIL_TO_USER=(
+    "dipodidae@users.noreply.github.com"       "dipodidae"
+    "spend-cloud-tom@users.noreply.github.com" "spend-cloud-tom"
+  )
+fi
+
+# Auto-switch configuration
+typeset -g GUS_AUTO_SWITCH="${GUS_AUTO_SWITCH:-1}"  # Enable by default
+typeset -g GUS_CURRENT_USER=""  # Track current user to avoid redundant switches
+
 #######################################
 # Print error message to STDERR
 # Globals:
@@ -31,9 +69,105 @@ Plugins[GIT_USER_SWITCH_DIR]="${0:h}"
 }
 
 #######################################
+# Get the git user.email from current directory
+# Globals:
+#   None
+# Arguments:
+#   None
+# Outputs:
+#   Git user email to STDOUT
+# Returns:
+#   0 if in git repo, 1 otherwise
+#######################################
+.gus_get_git_email() {
+  builtin emulate -L zsh ${=${options[xtrace]:#off}:+-o xtrace}
+  builtin setopt extended_glob warn_create_global typeset_silent \
+    no_short_loops rc_quotes no_auto_pushd
+
+  local MATCH REPLY
+  integer MBEGIN MEND
+  local -a match mbegin mend reply
+
+  # Check if we're in a git repository
+  if ! git rev-parse --git-dir &>/dev/null; then
+    return 1
+  fi
+
+  # Get the user.email from git config
+  local email
+  email="$(git config user.email 2>/dev/null)"
+
+  if [[ -z "${email}" ]]; then
+    return 1
+  fi
+
+  echo "${email}"
+  return 0
+}
+
+#######################################
+# Automatically switch user based on git config
+# Called by chpwd hook when directory changes
+# Globals:
+#   GUS_AUTO_SWITCH
+#   GUS_EMAIL_TO_USER
+#   GUS_CURRENT_USER
+# Arguments:
+#   None
+# Returns:
+#   0 on success or no action needed, 1 on error
+#######################################
+→gus_auto_switch() {
+  builtin emulate -L zsh ${=${options[xtrace]:#off}:+-o xtrace}
+  builtin setopt extended_glob warn_create_global typeset_silent \
+    no_short_loops rc_quotes no_auto_pushd
+
+  local MATCH REPLY
+  integer MBEGIN MEND
+  local -a match mbegin mend reply
+
+  # Skip if auto-switch is disabled
+  if [[ "${GUS_AUTO_SWITCH}" != "1" ]]; then
+    return 0
+  fi
+
+  # Get git email from current directory
+  local git_email
+  git_email="$(.gus_get_git_email)" || return 0
+
+  # Look up corresponding GitHub username
+  local github_user="${GUS_EMAIL_TO_USER[$git_email]}"
+
+  # If no mapping found, return silently
+  if [[ -z "${github_user}" ]]; then
+    return 0
+  fi
+
+  # Skip if already on this user (avoid redundant switches)
+  if [[ "${GUS_CURRENT_USER}" == "${github_user}" ]]; then
+    return 0
+  fi
+
+  # Perform the switch silently
+  echo "🔄 Auto-switching to GitHub user: ${github_user} (based on git config)"
+
+  # Update SSH config
+  .gus_update_ssh_config "${github_user}" || return 1
+
+  # Switch gh authentication
+  .gus_switch_gh_auth "${github_user}" || return 1
+
+  # Update current user tracking
+  GUS_CURRENT_USER="${github_user}"
+
+  return 0
+}
+
+#######################################
 # Update SSH config for GitHub with the specified user
 # Globals:
 #   HOME
+#   GUS_USER_KEYS
 # Arguments:
 #   Username to switch to
 # Returns:
@@ -52,19 +186,17 @@ Plugins[GIT_USER_SWITCH_DIR]="${0:h}"
   local ssh_config="${HOME}/.ssh/config"
   local ssh_key_file
 
-  # Determine SSH key file based on username
-  case "${username}" in
-    dipodidae)
-      ssh_key_file="${HOME}/.ssh/id_rsa_dipodidae"
-      ;;
-    spend-cloud-tom)
-      ssh_key_file="${HOME}/.ssh/id_rsa_spend_cloud_tom"
-      ;;
-    *)
-      .gus_err "Unknown user: ${username}"
-      return 1
-      ;;
-  esac
+  # Get SSH key file from configuration
+  ssh_key_file="${GUS_USER_KEYS[$username]}"
+
+  if [[ -z "${ssh_key_file}" ]]; then
+    .gus_err "No SSH key configured for user: ${username}"
+    .gus_err "Available users: ${(k)GUS_USER_KEYS[*]}"
+    return 1
+  fi
+
+  # Expand tilde in path
+  ssh_key_file="${ssh_key_file/#\~/$HOME}"
 
   # Check if SSH config exists
   if [[ ! -f "${ssh_config}" ]]; then
@@ -158,9 +290,9 @@ Plugins[GIT_USER_SWITCH_DIR]="${0:h}"
 # Main function to switch git user
 # Switches both SSH config and gh CLI authentication
 # Globals:
-#   None
+#   GUS_USER_KEYS
 # Arguments:
-#   Username to switch to (dipodidae or spend-cloud-tom)
+#   Username to switch to
 # Outputs:
 #   Success/error messages to STDOUT/STDERR
 # Returns:
@@ -177,21 +309,21 @@ gus() {
 
   local username="$1"
 
-  # Valid usernames
+  # Get valid usernames from configuration
   local -a valid_users
-  valid_users=(dipodidae spend-cloud-tom)
+  valid_users=( "${(k)GUS_USER_KEYS[@]}" )
 
   # Validate input
   if [[ -z "${username}" ]]; then
     .gus_err "Usage: gus <username>"
-    .gus_err "Valid usernames: ${valid_users[*]}"
+    .gus_err "Available users: ${valid_users[*]}"
     return 1
   fi
 
   # Check if username is valid
-  if [[ ! " ${valid_users[*]} " =~ " ${username} " ]]; then
+  if [[ -z "${GUS_USER_KEYS[$username]}" ]]; then
     .gus_err "Invalid username: ${username}"
-    .gus_err "Valid usernames: ${valid_users[*]}"
+    .gus_err "Available users: ${valid_users[*]}"
     return 1
   fi
 
@@ -202,6 +334,9 @@ gus() {
 
   # Switch gh authentication
   .gus_switch_gh_auth "${username}" || return 1
+
+  # Update current user tracking
+  GUS_CURRENT_USER="${username}"
 
   echo ""
   echo "✓ Successfully switched to ${username}"
@@ -214,6 +349,10 @@ gus() {
 # Unload function to clean up when plugin is unloaded
 # Globals:
 #   Plugins
+#   GUS_USER_KEYS
+#   GUS_EMAIL_TO_USER
+#   GUS_AUTO_SWITCH
+#   GUS_CURRENT_USER
 # Arguments:
 #   None
 #######################################
@@ -222,16 +361,34 @@ git_user_switch_plugin_unload() {
   builtin setopt extended_glob warn_create_global typeset_silent \
     no_short_loops rc_quotes no_auto_pushd
 
+  # Remove chpwd hook
+  if (( ${+functions[add-zsh-hook]} )); then
+    add-zsh-hook -d chpwd →gus_auto_switch
+  fi
+
   # Unset functions
   unfunction gus 2>/dev/null
   unfunction .gus_err 2>/dev/null
+  unfunction .gus_get_git_email 2>/dev/null
   unfunction .gus_update_ssh_config 2>/dev/null
   unfunction .gus_switch_gh_auth 2>/dev/null
+  unfunction →gus_auto_switch 2>/dev/null
   unfunction git_user_switch_plugin_unload 2>/dev/null
 
   # Clean up plugin data
   unset 'Plugins[GIT_USER_SWITCH_DIR]'
+  unset GUS_CURRENT_USER
+
+  # Clean up configuration (only if it was set by the plugin)
+  # Users who set GUS_USER_KEYS manually should unset it themselves
 }
+
+# Register chpwd hook for auto-switching
+autoload -Uz add-zsh-hook
+add-zsh-hook chpwd →gus_auto_switch
+
+# Run auto-switch on plugin load (for current directory)
+→gus_auto_switch
 
 # Register with plugin manager if available
 if [[ -n "${zsh_loaded_plugins}" ]]; then
