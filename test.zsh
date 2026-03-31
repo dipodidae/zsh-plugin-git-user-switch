@@ -3,128 +3,144 @@
 # Test script for git-user-switch plugin
 # This tests the plugin functionality without actually modifying your SSH config
 
-# Source the plugin
+emulate -L zsh
+setopt errexit nounset pipefail
+
 SCRIPT_DIR="${0:A:h}"
-source "${SCRIPT_DIR}/git-user-switch.plugin.zsh"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf -- "${TMP_DIR}"' EXIT
 
-echo "=== Git User Switch Plugin Test ==="
-echo ""
+export HOME="${TMP_DIR}/home"
+export XDG_CONFIG_HOME="${TMP_DIR}/config"
+export XDG_STATE_HOME="${TMP_DIR}/state"
+export GUS_TEST_GH_STATE="${TMP_DIR}/gh-user"
+export PATH="${TMP_DIR}/bin:${PATH}"
 
-# Test 1: Check if gus function exists
-echo "Test 1: Checking if gus function exists..."
-if (( ${+functions[gus]} )); then
-  echo "✓ PASS: gus function is defined"
-else
-  echo "✗ FAIL: gus function is not defined"
-  exit 1
-fi
-echo ""
+mkdir -p -- "${HOME}/.ssh" "${XDG_CONFIG_HOME}/git-user-switch" "${XDG_STATE_HOME}" "${TMP_DIR}/bin"
+touch -- "${HOME}/.ssh/personal" "${HOME}/.ssh/work"
+chmod 600 -- "${HOME}/.ssh/personal" "${HOME}/.ssh/work"
 
-# Test 2: Check if helper functions exist
-echo "Test 2: Checking helper functions..."
-local -a required_functions
-required_functions=(
-  .gus_err
-  .gus_update_ssh_config
-  .gus_switch_gh_auth
-  gus-appoint
-  git_user_switch_plugin_unload
+cat > "${HOME}/.ssh/config" <<'EOF'
+Host github-personal
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/personal
+
+Host github-work
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/work
+EOF
+
+cat > "${TMP_DIR}/bin/gh" <<'EOF'
+#!/bin/sh
+state="${GUS_TEST_GH_STATE}"
+case "$1 $2" in
+  "auth switch")
+    if [ "$3" = "--user" ] && [ -n "$4" ]; then
+      printf '%s\n' "$4" > "$state"
+      exit 0
+    fi
+    exit 1
+    ;;
+  "auth status")
+    user="unknown"
+    if [ -f "$state" ]; then
+      user=$(cat "$state")
+    fi
+    printf 'Logged in to github.com account %s\n' "$user"
+    exit 0
+    ;;
+esac
+exit 1
+EOF
+chmod +x -- "${TMP_DIR}/bin/gh"
+print -- "personal-gh" >| "${GUS_TEST_GH_STATE}"
+
+cat > "${XDG_CONFIG_HOME}/git-user-switch/config.zsh" <<'EOF'
+typeset -gA GUS_USERS
+GUS_USERS=(
+  "personal:key" "~/.ssh/personal"
+  "personal:email" "personal@example.com"
+  "personal:name" "Personal User"
+  "personal:host_alias" "github-personal"
+  "personal:gh_user" "personal-gh"
+  "work:key" "~/.ssh/work"
+  "work:email" "work@example.com"
+  "work:name" "Work User"
+  "work:host_alias" "github-work"
+  "work:gh_user" "work-gh"
 )
+EOF
 
-for func in "${required_functions[@]}"; do
-  if (( ${+functions[$func]} )); then
-    echo "✓ PASS: ${func} is defined"
-  else
-    echo "✗ FAIL: ${func} is not defined"
+assert_eq() {
+  local actual="$1"
+  local expected="$2"
+  local message="$3"
+
+  if [[ "${actual}" != "${expected}" ]]; then
+    print -u2 -- "FAIL: ${message}"
+    print -u2 -- "  expected: ${expected}"
+    print -u2 -- "  actual:   ${actual}"
     exit 1
   fi
-done
-echo ""
+}
 
-# Test 3: Check plugin hash
-echo "Test 3: Checking Plugins hash..."
-if [[ -n "${Plugins[GIT_USER_SWITCH_DIR]}" ]]; then
-  echo "✓ PASS: Plugins[GIT_USER_SWITCH_DIR] is set to: ${Plugins[GIT_USER_SWITCH_DIR]}"
-else
-  echo "✗ FAIL: Plugins[GIT_USER_SWITCH_DIR] is not set"
-  exit 1
-fi
-echo ""
+assert_contains() {
+  local haystack="$1"
+  local needle="$2"
+  local message="$3"
 
-# Test 3.5: Check configuration hashes
-echo "Test 3.5: Checking configuration hashes..."
-if (( ${#GUS_USER_KEYS[@]} > 0 )); then
-  echo "✓ PASS: GUS_USER_KEYS is configured with ${#GUS_USER_KEYS[@]} users"
-else
-  echo "✗ FAIL: GUS_USER_KEYS is not configured"
-  exit 1
-fi
+  if [[ "${haystack}" != *"${needle}"* ]]; then
+    print -u2 -- "FAIL: ${message}"
+    print -u2 -- "  missing: ${needle}"
+    print -u2 -- "  output: ${haystack}"
+    exit 1
+  fi
+}
 
-if (( ${#GUS_EMAIL_TO_USER[@]} > 0 )); then
-  echo "✓ PASS: GUS_EMAIL_TO_USER is configured with ${#GUS_EMAIL_TO_USER[@]} mappings"
-else
-  echo "✗ FAIL: GUS_EMAIL_TO_USER is not configured"
-  exit 1
-fi
+source "${SCRIPT_DIR}/git-user-switch.plugin.zsh"
 
-if (( ${#GUS_USER_EMAILS[@]} > 0 )); then
-  echo "✓ PASS: GUS_USER_EMAILS is configured with ${#GUS_USER_EMAILS[@]} mappings"
-else
-  echo "✗ FAIL: GUS_USER_EMAILS is not configured"
-  exit 1
-fi
+print -- "=== Behavioral Test: safe mode ==="
 
-if (( ${#GUS_USER_NAMES[@]} > 0 )); then
-  echo "✓ PASS: GUS_USER_NAMES is configured with ${#GUS_USER_NAMES[@]} mappings"
-else
-  echo "✗ FAIL: GUS_USER_NAMES is not configured"
-  exit 1
-fi
-echo ""
+list_output="$(gus list)"
+assert_contains "${list_output}" "personal" "gus list should include personal"
+assert_contains "${list_output}" "github-work" "gus list should include host alias"
 
-# Test 4: Test error handling (no arguments)
-echo "Test 4: Testing error handling (no arguments)..."
-if gus 2>/dev/null; then
-  echo "✗ FAIL: gus should fail without arguments"
-  exit 1
-else
-  echo "✓ PASS: gus correctly fails without arguments"
-fi
-echo ""
+REPO_DIR="${TMP_DIR}/repo"
+mkdir -p -- "${REPO_DIR}"
+cd -- "${REPO_DIR}"
+git init -q
+git remote add origin git@github.com:owner/project.git
 
-# Test 5: Test error handling (invalid user)
-echo "Test 5: Testing error handling (invalid user)..."
-if gus invalid-user 2>/dev/null; then
-  echo "✗ FAIL: gus should fail with invalid username"
-  exit 1
-else
-  echo "✓ PASS: gus correctly fails with invalid username"
-fi
-echo ""
+appoint_output="$(gus appoint work)"
+assert_contains "${appoint_output}" "✓ Active user: work" "gus appoint should report active user"
+assert_eq "$(git config --local --get user.name)" "Work User" "gus appoint should set git user.name"
+assert_eq "$(git config --local --get user.email)" "work@example.com" "gus appoint should set git user.email"
+assert_eq "$(git remote get-url origin)" "git@github-work:owner/project.git" "gus appoint should rewrite origin to work alias"
+assert_eq "$(cat -- "${GUS_TEST_GH_STATE}")" "work-gh" "gus appoint should switch gh user"
 
-# Test 6: Test unload function
-echo "Test 6: Testing unload function..."
+switch_output="$(gus switch personal)"
+assert_contains "${switch_output}" "✓ Active user: personal" "gus switch should report active user"
+assert_eq "$(git config --local --get user.email)" "work@example.com" "gus switch should not change repo email"
+assert_eq "$(git remote get-url origin)" "git@github-personal:owner/project.git" "gus switch should rewrite origin to personal alias"
+assert_eq "$(cat -- "${GUS_TEST_GH_STATE}")" "personal-gh" "gus switch should switch gh user"
+
+status_output="$(gus status)"
+assert_contains "${status_output}" "Active user: work" "gus status should derive active user from repo email"
+assert_contains "${status_output}" "Remote user: personal" "gus status should detect remote alias separately"
+
+doctor_output="$(gus doctor)"
+assert_contains "${doctor_output}" "Config validated" "gus doctor should validate config"
+
+compat_output="$(gus work 2>"${TMP_DIR}/compat.err")"
+assert_contains "${compat_output}" "✓ Active user: work" "legacy gus <user> should still switch"
+assert_contains "$(cat -- "${TMP_DIR}/compat.err")" "deprecated" "legacy gus <user> should warn"
+
 git_user_switch_plugin_unload
 if (( ${+functions[gus]} )); then
-  echo "✗ FAIL: gus function still exists after unload"
-  exit 1
-else
-  echo "✓ PASS: gus function was unloaded"
-fi
-
-if [[ -z "${Plugins[GIT_USER_SWITCH_DIR]}" ]]; then
-  echo "✓ PASS: Plugin data was cleaned up"
-else
-  echo "✗ FAIL: Plugin data still exists: ${Plugins[GIT_USER_SWITCH_DIR]}"
+  print -u2 -- "FAIL: gus should be undefined after unload"
   exit 1
 fi
-echo ""
 
-echo "=== All Tests Passed! ==="
-echo ""
-echo "To actually use the plugin, source it in your .zshrc:"
-echo "  source ${SCRIPT_DIR}/git-user-switch.plugin.zsh"
-echo ""
-echo "Then run:"
-echo "  gus dipodidae"
-echo "  gus spend-cloud-tom"
+print -- "PASS: safe mode behavioral coverage"

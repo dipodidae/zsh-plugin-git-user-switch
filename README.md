@@ -1,331 +1,170 @@
 # zsh-plugin-git-user-switch
 
-A simple zsh plugin to switch between multiple GitHub user accounts. It automatically updates both your SSH configuration and GitHub CLI (`gh`) authentication.
+Safe-by-default GitHub identity switching for zsh.
 
-## Features
+The plugin coordinates three pieces of state:
 
-- 🔑 Automatically updates SSH config to use the correct identity file
-- 👤 Switches `gh` CLI authentication to the specified user
-- 🔄 **Auto-switches based on git repository config** (when you `cd` into a directory)
-- 📝 **Appoint users to repositories** with full git config setup
-- ⚙️ Fully configurable user/key mappings
-- ✅ Validates user input and provides helpful error messages
-- 💾 Creates automatic backups of your SSH config before making changes
-- 📦 Follows the [Zsh Plugin Standard](https://z-shell.pages.dev/docs/zsh-plugin-standard)
+- repository git identity
+- GitHub SSH routing
+- optional GitHub CLI account switching
 
-## Prerequisites
+The default design is `Safe & Predictable`:
 
-1. **GitHub CLI (`gh`)** installed and authenticated for both users
-   ```bash
-   gh auth login
-   ```
+- no global SSH mutation during normal use
+- repository remotes are rewritten to per-user SSH host aliases such as `github-work`
+- current state is derived from git config, remotes, and `gh auth status`
 
-2. **SSH keys** set up for both users at:
-   - `~/.ssh/id_rsa_dipodidae` (or your preferred key name)
-   - `~/.ssh/id_rsa_spend_cloud_tom` (or your preferred key name)
+An opt-in `magic` mode is still available if you want the older global `Host github.com` rewrite behavior.
 
-3. **SSH config** (`~/.ssh/config`) with a GitHub section:
-   ```ssh
-   Host github.com
-     HostName github.com
-     User git
-     IdentityFile ~/.ssh/id_rsa_dipodidae
-   ```
+## Philosophy
 
-## Configuration
+Primary mode: `safe`
 
-The plugin uses a configurable mapping between GitHub usernames and SSH key paths. You can customize this in your `.zshrc` **before** loading the plugin.
+- deterministic, repo-scoped behavior
+- no hidden writes to `~/.ssh/config`
+- easy to inspect with `gus status` and `gus doctor`
 
-### Default Configuration
+Secondary mode: `magic`
 
-If you don't provide a custom configuration, the plugin uses these defaults:
-
-```zsh
-typeset -gA GUS_USER_KEYS
-GUS_USER_KEYS=(
-  "dipodidae"       "~/.ssh/dipodidae"
-  "spend-cloud-tom" "~/.ssh/spend-cloud-tom"
-)
-```
-
-**Note:** These paths match the repository author's setup. You should customize them to match your own SSH key locations.
-
-### Custom Configuration
-
-To use your own user/key mappings, add this to your `.zshrc` **before** the plugin is loaded:
-
-```zsh
-# Define your custom user-to-key mapping
-typeset -gA GUS_USER_KEYS
-GUS_USER_KEYS=(
-  "dipodidae"       "~/.ssh/dipodidae"
-  "spend-cloud-tom" "~/.ssh/spend-cloud-tom"
-  "another-user"    "~/.ssh/another_user_key"
-)
-
-# Define email-to-username mapping for auto-switching
-typeset -gA GUS_EMAIL_TO_USER
-GUS_EMAIL_TO_USER=(
-  "dipodidae@users.noreply.github.com"       "dipodidae"
-  "tom@work.com"                             "spend-cloud-tom"
-  "another@example.com"                      "another-user"
-)
-
-# Optional: Disable auto-switching (enabled by default)
-# typeset -g GUS_AUTO_SWITCH=0
-
-# Then load the plugin (example with Zi)
-zi light dipodidae/zsh-plugin-git-user-switch
-```
-
-**Configuration Options:**
-- `GUS_USER_KEYS`: Maps GitHub username → SSH key path
-- `GUS_EMAIL_TO_USER`: Maps git user.email → GitHub username (for auto-switching)
-- `GUS_USER_EMAILS`: Maps GitHub username → git user.email (for appointing users)
-- `GUS_USER_NAMES`: Maps GitHub username → git user.name (for appointing users)
-- `GUS_AUTO_SWITCH`: Enable/disable auto-switching (1 = enabled, 0 = disabled, default: 1)
-
-**Note:** The mapping format is:
-- Key: GitHub username (must match your `gh` CLI authenticated username)
-- Value: Path to SSH private key (can use `~` for home directory)
+- explicit opt-in with `GUS_MODE=magic`
+- rewrites the `Host github.com` block atomically
+- creates timestamped backups like `~/.ssh/config.bak.20260331153000`
 
 ## Installation
 
-### Using [Zi](https://github.com/z-shell/zi)
+Source the plugin from your `.zshrc`.
 
 ```zsh
-zi light dipodidae/zsh-plugin-git-user-switch
+source /path/to/zsh-plugin-git-user-switch/git-user-switch.plugin.zsh
 ```
 
-### Using [Oh My Zsh](https://ohmyz.sh/)
+## Configuration
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/dipodidae/zsh-plugin-git-user-switch.git \
-     ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/git-user-switch
-   ```
+The plugin now uses one source of truth: `GUS_USERS`.
 
-2. Add to your `.zshrc`:
-   ```zsh
-   plugins=(... git-user-switch)
-   ```
+Default config path:
 
-### Using [zplug](https://github.com/zplug/zplug)
+```text
+${XDG_CONFIG_HOME:-$HOME/.config}/git-user-switch/config.zsh
+```
+
+Example:
 
 ```zsh
-zplug "dipodidae/zsh-plugin-git-user-switch"
+typeset -gA GUS_USERS
+GUS_USERS=(
+  "personal:key" "~/.ssh/personal"
+  "personal:email" "personal@example.com"
+  "personal:name" "Personal User"
+  "personal:host_alias" "github-personal"
+  "personal:gh_user" "personal-gh"
+
+  "work:key" "~/.ssh/work"
+  "work:email" "work@example.com"
+  "work:name" "Work User"
+  "work:host_alias" "github-work"
+  "work:gh_user" "work-gh"
+)
 ```
 
-### Manual Installation
+Fields:
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/dipodidae/zsh-plugin-git-user-switch.git \
-     ~/.zsh/plugins/git-user-switch
-   ```
+- `user:key`: private SSH key path
+- `user:email`: repo `git config user.email`
+- `user:name`: repo `git config user.name`
+- `user:host_alias`: SSH alias used in safe mode remotes
+- `user:gh_user`: `gh` account name for `gh auth switch --user`
 
-2. Source the plugin in your `.zshrc`:
-   ```zsh
-   source ~/.zsh/plugins/git-user-switch/git-user-switch.plugin.zsh
-   ```
+Optional environment flags before loading the plugin:
+
+```zsh
+export GUS_MODE=safe
+export GUS_AUTO_SWITCH=1
+export GUS_VERBOSE=0
+export GUS_ENABLE_GH_SWITCH=1
+export GUS_CONFIG_FILE="$HOME/.config/git-user-switch/config.zsh"
+```
+
+Legacy associative arrays are still imported for compatibility, but `GUS_USERS` is the target format.
+
+## Safe-Mode SSH Setup
+
+Add one alias per identity to `~/.ssh/config`:
+
+```sshconfig
+Host github-personal
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/personal
+
+Host github-work
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/work
+```
+
+In safe mode, `gus` rewrites repository remotes from `git@github.com:owner/repo.git` to `git@github-work:owner/repo.git` or similar.
+
+## Commands
+
+```bash
+gus switch <user>
+gus appoint <user>
+gus status
+gus list
+gus doctor
+gus help
+```
+
+Compatibility shims still exist:
+
+```bash
+gus <user>
+gus-appoint <user>
+```
 
 ## Usage
 
-### Appointing a User to a Repository
-
-Use the `gus-appoint` command to set up a user for a specific repository with all necessary git config:
+Switch a repository to a configured identity without changing repo git config:
 
 ```bash
-# Navigate to your repository
-cd ~/projects/my-work-repo
-
-# Appoint a user to this repository
-gus-appoint spend-cloud-tom
+gus switch work
 ```
 
-This command will:
-1. Set `git config user.name` and `user.email` for the repository
-2. Update your `~/.ssh/config` to use the correct SSH key
-3. Switch your `gh` CLI authentication to the specified user
-
-Perfect for setting up new repositories or switching ownership of existing ones!
-
-**For detailed information, see the [Repository Appointment Guide](APPOINT-GUIDE.md).**
-
-### Manual Switching
-
-Switch between users with the `gus` command:
+Appoint a user to the current repository:
 
 ```bash
-# Switch to dipodidae account
-gus dipodidae
-
-# Switch to spend-cloud-tom account
-gus spend-cloud-tom
+gus appoint work
 ```
 
-The plugin will:
-1. Update your `~/.ssh/config` to use the correct SSH key
-2. Switch your `gh` CLI authentication to the specified user
-3. Create a backup of your SSH config at `~/.ssh/config.bak`
-
-### Automatic Switching
-
-The plugin automatically switches users when you navigate to a git repository, based on the `user.email` in the git config:
+Inspect state:
 
 ```bash
-# Set git email in your personal project
-cd ~/projects/personal-repo
-git config user.email "dipodidae@users.noreply.github.com"
-
-# Set git email in your work project
-cd ~/projects/work-repo
-git config user.email "tom@work.com"
-
-# Now when you cd between them, the plugin auto-switches!
-cd ~/projects/personal-repo  # 🔄 Auto-switches to dipodidae
-cd ~/projects/work-project         # 🔄 Auto-switches to spend-cloud-tom
+gus status
+gus doctor
 ```
 
-## Commands Reference
+## Auto-Switching
 
-The plugin provides the following commands:
+Auto-switch is enabled by default and runs on directory change.
 
-### `gus help`
-Display brief usage information for all commands.
+Behavior:
 
-```bash
-gus help        # Show help
-gus --help      # Also works
-gus -h          # Also works
-```
+- reads repo-local `user.email`
+- maps it to a configured user
+- applies the same switching pipeline quietly
+- respects `GUS_AUTO_SWITCH=0`
+- can be temporarily disabled with `gus lock` and re-enabled with `gus unlock`
 
-### `gus <username>`
-Switch to a different GitHub user globally (SSH config and gh CLI).
+## Current Implementation Status
 
-```bash
-gus dipodidae        # Switch to dipodidae
-gus spend-cloud-tom  # Switch to spend-cloud-tom
-```
+Implemented in this refactor pass:
 
-**What it does:**
-- Updates SSH config to use the user's SSH key
-- Switches gh CLI authentication
-- Updates internal user tracking
+- unified `gus` subcommands
+- safe-mode remote rewriting
+- opt-in magic SSH mode with backups
+- `gus status`, `gus list`, and `gus doctor`
+- compatibility import for legacy config arrays
+- behavior-focused zsh tests for safe and magic modes
 
-### `gus-appoint <username>`
-Appoint a user to the current git repository with complete configuration.
-
-```bash
-cd ~/projects/my-repo
-gus-appoint dipodidae  # Set up repository for dipodidae
-```
-
-**What it does:**
-- Sets `git config user.name` for the repository
-- Sets `git config user.email` for the repository
-- Updates SSH config to use the user's SSH key
-- Switches gh CLI authentication
-- Updates internal user tracking
-
-**Requires:** Must be run inside a git repository
-
-See [APPOINT-GUIDE.md](APPOINT-GUIDE.md) for detailed usage.
-
-## Configuration
-
-By default, the plugin expects SSH keys at:
-```
-
-**How it works:**
-1. When you `cd` into a directory, the plugin checks if it's a git repository
-2. It reads the `git config user.email` value
-3. It looks up the corresponding GitHub username in `GUS_EMAIL_TO_USER`
-4. If a match is found and it's different from the current user, it auto-switches
-
-**To disable auto-switching:**
-```zsh
-# In your .zshrc before loading the plugin
-typeset -g GUS_AUTO_SWITCH=0
-```
-
-## Configuration
-
-By default, the plugin expects SSH keys at:
-- `~/.ssh/id_rsa_dipodidae`
-- `~/.ssh/id_rsa_spend_cloud_tom`
-
-If your keys are located elsewhere, you can modify the `.gus_update_ssh_config` function in `git-user-switch.plugin.zsh`:
-
-```zsh
-case "${username}" in
-  dipodidae)
-    ssh_key_file="${HOME}/.ssh/your_custom_key_name"
-    ;;
-  spend-cloud-tom)
-    ssh_key_file="${HOME}/.ssh/another_key_name"
-    ;;
-esac
-```
-
-## Troubleshooting
-
-### "gh CLI not found"
-Install the GitHub CLI: https://cli.github.com/
-
-### "Failed to switch gh authentication"
-Make sure both users are authenticated:
-```bash
-gh auth login
-```
-
-### "SSH key not found"
-Ensure your SSH keys exist at the expected locations and have the correct permissions:
-```bash
-chmod 600 ~/.ssh/id_rsa_*
-```
-
-### "SSH config not found"
-Create a `~/.ssh/config` file with a GitHub section:
-```bash
-mkdir -p ~/.ssh
-cat >> ~/.ssh/config << 'EOF'
-Host github.com
-  HostName github.com
-  User git
-  IdentityFile ~/.ssh/id_rsa_dipodidae
-EOF
-```
-
-## Development
-
-This plugin follows:
-- [Zsh Plugin Standard](https://z-shell.pages.dev/docs/zsh-plugin-standard)
-- [Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html)
-
-### Plugin Structure
-
-```
-.
-├── git-user-switch.plugin.zsh  # Main plugin file
-└── README.md                    # This file
-```
-
-### Unloading
-
-The plugin provides an unload function that can be called by plugin managers:
-```zsh
-git_user_switch_plugin_unload
-```
-
-## License
-
-MIT License - feel free to use and modify as needed.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Author
-
-Tom (@dipodidae)
+The remaining guide files in the repo still need to be rewritten to match the new model.
