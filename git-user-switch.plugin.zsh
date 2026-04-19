@@ -446,6 +446,82 @@ _gus_backup_file() {
   print -- "${backup_path}"
 }
 
+_gus_ensure_host_alias() {
+  emulate -L zsh
+
+  local username="$1"
+  local ssh_config="${HOME}/.ssh/config"
+  local ssh_dir="${HOME}/.ssh"
+  local key_file alias temp_file backup_path block
+
+  alias="$(_gus_user_field "${username}" host_alias)"
+  if [[ -z "${alias}" ]]; then
+    _gus_err "No host_alias configured for user: ${username}"
+    return 1
+  fi
+
+  key_file="$(_gus_expand_path "$(_gus_user_field "${username}" key)")"
+  if [[ -z "${key_file}" ]]; then
+    _gus_err "No SSH key configured for user: ${username}"
+    return 1
+  fi
+
+  if [[ ! -f "${key_file}" ]]; then
+    _gus_err "SSH key not found: ${key_file}"
+    return 1
+  fi
+
+  mkdir -p -- "${ssh_dir}" || {
+    _gus_err "Failed to create SSH directory: ${ssh_dir}"
+    return 1
+  }
+  chmod 700 -- "${ssh_dir}" 2>/dev/null || true
+
+  block=$(cat <<EOF
+Host ${alias}
+  HostName github.com
+  User git
+  IdentityFile ${key_file}
+  IdentitiesOnly yes
+  AddKeysToAgent yes
+EOF
+)
+
+  if [[ -f "${ssh_config}" ]]; then
+    if command grep -q "^Host ${alias}\$" -- "${ssh_config}"; then
+      return 0
+    fi
+
+    backup_path="$(_gus_backup_file "${ssh_config}")" || return 1
+    _gus_info "Created SSH config backup: ${backup_path}"
+
+    temp_file="${ssh_config}.tmp.$$"
+    {
+      cat -- "${ssh_config}"
+      print --
+      print -- "${block}"
+    } > "${temp_file}" || {
+      rm -f -- "${temp_file}"
+      _gus_err "Failed to append SSH host alias block"
+      return 1
+    }
+
+    mv -- "${temp_file}" "${ssh_config}" || {
+      rm -f -- "${temp_file}"
+      _gus_err "Failed to install updated SSH config"
+      return 1
+    }
+  else
+    print -- "${block}" > "${ssh_config}" || {
+      _gus_err "Failed to write SSH config"
+      return 1
+    }
+    chmod 600 -- "${ssh_config}" 2>/dev/null || true
+  fi
+
+  return 0
+}
+
 _gus_magic_ssh_config() {
   emulate -L zsh
 
@@ -653,6 +729,7 @@ _gus_apply_user() {
   fi
 
   if [[ "${GUS_MODE}" == "safe" ]]; then
+    _gus_ensure_host_alias "${username}" || return 1
     _gus_update_repo_remotes "${username}" || return 1
     ssh_target="$(_gus_user_field "${username}" host_alias)"
   elif [[ "${GUS_MODE}" == "magic" ]]; then
@@ -947,6 +1024,7 @@ git_user_switch_plugin_unload() {
   unfunction _gus_remote_points_to_github 2>/dev/null
   unfunction _gus_update_repo_remotes 2>/dev/null
   unfunction _gus_backup_file 2>/dev/null
+  unfunction _gus_ensure_host_alias 2>/dev/null
   unfunction _gus_magic_ssh_config 2>/dev/null
   unfunction _gus_switch_gh_auth 2>/dev/null
   unfunction _gus_write_last_user 2>/dev/null

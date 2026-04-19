@@ -1,17 +1,35 @@
-# Example SSH Config for Git User Switch Plugin
+# Example ~/.ssh/config for git-user-switch
 #
-# Place this in ~/.ssh/config
-# The plugin will automatically update the IdentityFile line when you switch users
+# Safe mode (default): `gus switch <user>` now auto-appends a Host block
+# like the ones below to ~/.ssh/config using GUS_USERS[<user>:host_alias]
+# and GUS_USERS[<user>:key]. This file is reference only — you do not need
+# to copy anything by hand for safe mode to work.
+#
+# Each configured user gets one Host alias. Per-repo remotes are rewritten
+# to git@<alias>:owner/repo so SSH selects the right key without touching
+# a canonical Host github.com entry you may already rely on.
 
-Host github.com
+Host github-dipodidae
   HostName github.com
   User git
-  IdentityFile ~/.ssh/id_rsa_dipodidae
-  AddKeysToAgent yes
+  IdentityFile ~/.ssh/dipodidae
   IdentitiesOnly yes
+  AddKeysToAgent yes
 
-# You can also add other hosts below as needed
-# Host gitlab.com
-#   HostName gitlab.com
+Host github-spend-cloud-tom
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/spend-cloud-tom
+  IdentitiesOnly yes
+  AddKeysToAgent yes
+
+# Magic mode (opt-in via GUS_MODE=magic) rewrites a single Host github.com
+# block to point at the active user's key. Prefer this only if you want one
+# canonical github.com entry instead of per-repo remote rewriting.
+#
+# Host github.com
+#   HostName github.com
 #   User git
-#   IdentityFile ~/.ssh/id_rsa_gitlab
+#   IdentityFile ~/.ssh/<active-user-key>
+#   IdentitiesOnly yes
+#   AddKeysToAgent yes

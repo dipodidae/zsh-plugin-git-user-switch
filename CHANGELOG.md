@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Safe mode now auto-provisions the matching `Host <alias>` block in `~/.ssh/config` when switching users, so remote URLs rewritten to `git@github-<user>:...` resolve without manual SSH config setup. Existing `Host <alias>` entries are left alone; a backup is created before appending.
 - **📝 Repository user appointment** - New `gus-appoint` command to set up a user for a repository with full git config
 - `gus-appoint <username>` command to configure git user.name, user.email, SSH, and gh CLI in one command
 - `gus help` command to display brief usage information for all commands
